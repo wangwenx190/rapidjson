@@ -1,257 +1,155 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
+cmake_minimum_required(VERSION 4.0)
 
-SET(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules)
+project(RapidJSON
+    VERSION 1.1.0
+    DESCRIPTION "A fast JSON parser/generator for C++ with both SAX/DOM style API"
+    LANGUAGES CXX
+)
 
-set(LIB_MAJOR_VERSION "1")
-set(LIB_MINOR_VERSION "1")
-set(LIB_PATCH_VERSION "0")
-set(LIB_VERSION_STRING "${LIB_MAJOR_VERSION}.${LIB_MINOR_VERSION}.${LIB_PATCH_VERSION}")
-
-PROJECT(RapidJSON VERSION "${LIB_VERSION_STRING}" LANGUAGES CXX)
-
-# compile in release with debug info mode by default
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
+if(WIN32)
+    enable_language(RC)
 endif()
-
-# Build all binaries in a separate directory
-SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-
-option(RAPIDJSON_BUILD_DOC "Build rapidjson documentation." ON)
-option(RAPIDJSON_BUILD_EXAMPLES "Build rapidjson examples." ON)
-option(RAPIDJSON_BUILD_TESTS "Build rapidjson perftests and unittests." ON)
-option(RAPIDJSON_BUILD_THIRDPARTY_GTEST
-    "Use gtest installation in `thirdparty/gtest` by default if available" OFF)
-
-option(RAPIDJSON_BUILD_CXX11 "Build rapidjson with C++11" ON)
-option(RAPIDJSON_BUILD_CXX17 "Build rapidjson with C++17" OFF)
-option(RAPIDJSON_BUILD_CXX20 "Build rapidjson with C++20" OFF)
-if(RAPIDJSON_BUILD_CXX11)
-    set(CMAKE_CXX_STANDARD 11)
-    set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+if(NOT DEFINED CMAKE_BUILD_TYPE AND NOT DEFINED CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE "Release")
 endif()
-
-option(RAPIDJSON_BUILD_ASAN "Build rapidjson with address sanitizer (gcc/clang)" OFF)
-option(RAPIDJSON_BUILD_UBSAN "Build rapidjson with undefined behavior sanitizer (gcc/clang)" OFF)
-
-option(RAPIDJSON_ENABLE_INSTRUMENTATION_OPT "Build rapidjson with -march or -mcpu options" ON)
-
-option(RAPIDJSON_HAS_STDSTRING "" OFF)
-if(RAPIDJSON_HAS_STDSTRING)
-    add_definitions(-DRAPIDJSON_HAS_STDSTRING)
-endif()
-
-option(RAPIDJSON_USE_MEMBERSMAP "" OFF)
-if(RAPIDJSON_USE_MEMBERSMAP)
-    add_definitions(-DRAPIDJSON_USE_MEMBERSMAP=1)
-endif()
-
-find_program(CCACHE_FOUND ccache)
-if(CCACHE_FOUND)
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
-    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Qunused-arguments -fcolor-diagnostics")
-    endif()
-endif(CCACHE_FOUND)
-
-find_program(VALGRIND_FOUND valgrind)
-
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    if(RAPIDJSON_ENABLE_INSTRUMENTATION_OPT AND NOT CMAKE_CROSSCOMPILING)
-        if(CMAKE_SYSTEM_PROCESSOR STREQUAL "powerpc" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "ppc" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "ppc64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "ppc64le")
-          set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcpu=native")
-        else()
-          #FIXME: x86 is -march=native, but doesn't mean every arch is this option. To keep original project's compatibility, I leave this except POWER.
-          set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
-        endif()
-    endif()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror")
-    set(EXTRA_CXX_FLAGS -Weffc++ -Wswitch-default -Wfloat-equal -Wconversion -Wsign-conversion)
-    if (RAPIDJSON_BUILD_CXX11 AND CMAKE_VERSION VERSION_LESS 3.1)
-        if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "4.7.0")
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
-        else()
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-        endif()
-    elseif (RAPIDJSON_BUILD_CXX17 AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5.0")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
-    elseif (RAPIDJSON_BUILD_CXX20 AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "8.0")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
-    endif()
-    if (RAPIDJSON_BUILD_ASAN)
-        if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "4.8.0")
-            message(FATAL_ERROR "GCC < 4.8 doesn't support the address sanitizer")
-        else()
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
-        endif()
-    endif()
-    if (RAPIDJSON_BUILD_UBSAN)
-        if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "4.9.0")
-            message(FATAL_ERROR "GCC < 4.9 doesn't support the undefined behavior sanitizer")
-        else()
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined")
-        endif()
-    endif()
-elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    if(NOT CMAKE_CROSSCOMPILING)
-      if(CMAKE_SYSTEM_PROCESSOR STREQUAL "powerpc" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "ppc" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "ppc64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "ppc64le")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcpu=native")
-      else()
-        #FIXME: x86 is -march=native, but doesn't mean every arch is this option. To keep original project's compatibility, I leave this except POWER.
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
-      endif()
-    endif()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-missing-field-initializers")
-    set(EXTRA_CXX_FLAGS -Weffc++ -Wswitch-default -Wfloat-equal -Wconversion -Wimplicit-fallthrough)
-    if (RAPIDJSON_BUILD_CXX11 AND CMAKE_VERSION VERSION_LESS 3.1)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-    elseif (RAPIDJSON_BUILD_CXX17 AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "4.0")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
-    elseif (RAPIDJSON_BUILD_CXX20 AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10.0")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
-    endif()
-    if (RAPIDJSON_BUILD_ASAN)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
-    endif()
-    if (RAPIDJSON_BUILD_UBSAN)
-        if (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined-trap -fsanitize-undefined-trap-on-error")
-        else()
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined")
-        endif()
-    endif()
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS=1)
-    add_definitions(-DNOMINMAX)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
-    # CMake >= 3.10 should handle the above CMAKE_CXX_STANDARD fine, otherwise use /std:c++XX with MSVC >= 19.10
-    if (RAPIDJSON_BUILD_CXX11 AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.10")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++11")
-    elseif (RAPIDJSON_BUILD_CXX17 AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.14")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17")
-    elseif (RAPIDJSON_BUILD_CXX20 AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.29")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++20")
-    endif()
-    # Always compile with /WX
-    if(CMAKE_CXX_FLAGS MATCHES "/WX-")
-        string(REGEX REPLACE "/WX-" "/WX" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
+set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
+if(NOT "x${CMAKE_CXX_FLAGS}" STREQUAL "x")
+    if(MSVC)
+        string(REGEX REPLACE " [/-]W[01234] " " " CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
     else()
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX")
+        string(REGEX REPLACE " -W(all)?(extra)? " " " CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+        string(REGEX REPLACE " -[W]?pedantic " " " CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
     endif()
-elseif (CMAKE_CXX_COMPILER_ID MATCHES "XL")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -qarch=auto")
+endif()
+string(APPEND CMAKE_CXX_FLAGS " -w ")
+
+set(__top_level ON)
+if("x${CMAKE_SOURCE_DIR}" STREQUAL "x${PROJECT_SOURCE_DIR}")
+    message("RapidJSON: Building as a top-level project.")
+else()
+    set(__top_level OFF)
+    message("RapidJSON: Building as a subproject.")
 endif()
 
-#add extra search paths for libraries and includes
-SET(INCLUDE_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/include" CACHE PATH "The directory the headers are installed in")
-SET(LIB_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/lib" CACHE STRING "Directory where lib will install")
-SET(DOC_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/share/doc/${PROJECT_NAME}" CACHE PATH "Path to the documentation")
-
-IF(UNIX OR CYGWIN)
-    SET(_CMAKE_INSTALL_DIR "${LIB_INSTALL_DIR}/cmake/${PROJECT_NAME}")
-ELSEIF(WIN32)
-    SET(_CMAKE_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/cmake")
-ENDIF()
-SET(CMAKE_INSTALL_DIR "${_CMAKE_INSTALL_DIR}" CACHE PATH "The directory cmake files are installed in")
-
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-if(RAPIDJSON_BUILD_DOC)
-    add_subdirectory(doc)
+option(RAPIDJSON_BUILD_SHARED "Build shared library edition of RapidJSON." ON)
+option(RAPIDJSON_BUILD_STATIC "Build static library edition of RapidJSON." ON)
+option(RAPIDJSON_INSTALL "Enable installation for RapidJSON." OFF)
+if(NOT RAPIDJSON_BUILD_SHARED AND NOT RAPIDJSON_BUILD_STATIC)
+    message(SEND_ERROR "You MUST build either the shared library or the static library or both of them!")
 endif()
 
-add_custom_target(travis_doc)
-add_custom_command(TARGET travis_doc
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/travis-doxygen.sh)
-
-if(RAPIDJSON_BUILD_EXAMPLES)
-    add_subdirectory(example)
+if(CMAKE_CXX_COMPILER_ARCHITECTURE_ID)
+    string(TOLOWER "${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" __architecture)
+else()
+    string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" __architecture)
+endif()
+set(__x64 OFF)
+set(__arm64 OFF)
+if(__architecture MATCHES "^(amd64|x86_64|x64)$")
+    set(__x64 ON)
+elseif(__architecture MATCHES "^(aarch64|arm64)$")
+    set(__arm64 ON)
 endif()
 
-if(RAPIDJSON_BUILD_TESTS)
-    if(MSVC11)
-        # required for VS2012 due to missing support for variadic templates
-        add_definitions(-D_VARIADIC_MAX=10)
-    endif(MSVC11)
-    add_subdirectory(test)
-    include(CTest)
+set(__targets)
+if(RAPIDJSON_BUILD_SHARED)
+    add_library(${PROJECT_NAME}_shared SHARED)
+    add_library(${PROJECT_NAME}::${PROJECT_NAME}_shared ALIAS ${PROJECT_NAME}_shared)
+    set_target_properties(${PROJECT_NAME}_shared PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
+    target_compile_definitions(${PROJECT_NAME}_shared PRIVATE RAPIDJSON_EXPORTS)
+    if(WIN32)
+        target_sources(${PROJECT_NAME}_shared PRIVATE rapidjson.rc)
+    endif()
+    list(APPEND __targets ${PROJECT_NAME}_shared)
+endif()
+if(RAPIDJSON_BUILD_STATIC)
+    add_library(${PROJECT_NAME}_static STATIC)
+    add_library(${PROJECT_NAME}::${PROJECT_NAME}_static ALIAS ${PROJECT_NAME}_static)
+    target_compile_definitions(${PROJECT_NAME}_static PUBLIC RAPIDJSON_STATIC_DEFINE)
+    list(APPEND __targets ${PROJECT_NAME}_static)
+endif()
+if(RAPIDJSON_BUILD_SHARED AND NOT RAPIDJSON_BUILD_STATIC)
+    add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME}_shared)
+endif()
+if(RAPIDJSON_BUILD_STATIC AND NOT RAPIDJSON_BUILD_SHARED)
+    add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME}_static)
 endif()
 
-# pkg-config
-IF (UNIX OR CYGWIN)
-  CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}.pc.in
-                  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc
-                  @ONLY)
-  INSTALL (FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc
-      DESTINATION "${LIB_INSTALL_DIR}/pkgconfig"
-      COMPONENT pkgconfig)
-ENDIF()
+include(GNUInstallDirs)
+file(GLOB_RECURSE __sources LIST_DIRECTORIES false CONFIGURE_DEPENDS
+    "./include/rapidjson/*.h" "./src/*.h" "./src/*.cpp"
+)
+foreach(__target IN LISTS __targets)
+    target_sources(${__target} PRIVATE ${__sources})
+    target_include_directories(${__target}
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    if(__x64)
+        target_compile_definitions(${__target} PUBLIC RAPIDJSON_SSE42)
+        if(NOT MSVC)
+            target_compile_options(${__target} PUBLIC "-msse4.2")
+        endif()
+    elseif(__arm64)
+        target_compile_definitions(${__target} PUBLIC RAPIDJSON_NEON)
+    endif()
+    if(__top_level)
+        if(WIN32)
+            target_compile_definitions(${__target} PRIVATE
+                UNICODE _UNICODE
+                NOMINMAX
+                WIN32_LEAN_AND_MEAN
+            )
+        endif()
+        if(MSVC)
+            target_compile_options(${__target} PRIVATE
+                /utf-8 /permissive- /Zc:__cplusplus
+                $<$<NOT:$<CONFIG:Debug>>:/Gw /Gy /Zc:inline>
+            )
+            target_link_options(${__target} PRIVATE
+                $<$<NOT:$<CONFIG:Debug>>:/OPT:REF /OPT:ICF>
+            )
+        else()
+            target_compile_options(${__target} PRIVATE
+                $<$<NOT:$<CONFIG:Debug>>:-ffunction-sections -fdata-sections>
+            )
+            if(APPLE)
+                target_link_options(${__target} PRIVATE
+                    $<$<NOT:$<CONFIG:Debug>>:-Wl,-dead_strip>
+                )
+            else()
+                target_link_options(${__target} PRIVATE
+                    $<$<NOT:$<CONFIG:Debug>>:-Wl,--gc-sections>
+                )
+            endif()
+        endif()
+    endif()
+    set_target_properties(${__target} PROPERTIES VERSION ${PROJECT_VERSION})
+    get_target_property(__type ${__target} TYPE)
+    if(NOT "x${__type}" STREQUAL "xSTATIC_LIBRARY")
+        set_target_properties(${__target} PROPERTIES SOVERSION ${PROJECT_VERSION_MAJOR})
+    endif()
+    if(RAPIDJSON_INSTALL)
+        install(TARGETS ${__target}
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        )
+    endif()
+endforeach()
 
-install(FILES readme.md
-        DESTINATION "${DOC_INSTALL_DIR}"
-        COMPONENT doc)
-
-# Add an interface target to export it
-add_library(RapidJSON INTERFACE)
-
-target_include_directories(RapidJSON INTERFACE $<INSTALL_INTERFACE:include>)
-
-install(DIRECTORY include/rapidjson
-    DESTINATION "${INCLUDE_INSTALL_DIR}"
-    COMPONENT dev)
-
-install(DIRECTORY example/
-    DESTINATION "${DOC_INSTALL_DIR}/examples"
-    COMPONENT examples
-    # Following patterns are for excluding the intermediate/object files
-    # from an install of in-source CMake build.
-    PATTERN "CMakeFiles" EXCLUDE
-    PATTERN "Makefile" EXCLUDE
-    PATTERN "cmake_install.cmake" EXCLUDE)
-
-# Provide config and version files to be used by other applications
-# ===============================
-
-################################################################################
-# Export package for use from the build tree
-EXPORT( PACKAGE ${PROJECT_NAME} )
-
-# Create the RapidJSONConfig.cmake file for other cmake projects.
-# ... for the build tree
-SET( CONFIG_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-SET( CONFIG_DIR ${CMAKE_CURRENT_BINARY_DIR})
-SET( ${PROJECT_NAME}_INCLUDE_DIR "\${${PROJECT_NAME}_SOURCE_DIR}/include" )
-
-INCLUDE(CMakePackageConfigHelpers)
-CONFIGURE_FILE( ${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}Config.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake @ONLY )
-CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}ConfigVersion.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake @ONLY)
-
-# ... for the install tree
-SET( CMAKECONFIG_INSTALL_DIR ${LIB_INSTALL_DIR}/cmake/${PROJECT_NAME} )
-FILE( RELATIVE_PATH REL_INCLUDE_DIR
-    "${CMAKECONFIG_INSTALL_DIR}"
-    "${CMAKE_INSTALL_PREFIX}/include" )
-
-SET( ${PROJECT_NAME}_INCLUDE_DIR "\${${PROJECT_NAME}_CMAKE_DIR}/${REL_INCLUDE_DIR}" )
-SET( CONFIG_SOURCE_DIR )
-SET( CONFIG_DIR )
-CONFIGURE_FILE( ${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}Config.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Config.cmake @ONLY )
-
-INSTALL(FILES "${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Config.cmake"
-        DESTINATION ${CMAKECONFIG_INSTALL_DIR} )
-
-# Install files
-IF(CMAKE_INSTALL_DIR)
-    INSTALL(FILES
-        ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
-        ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
-        DESTINATION "${CMAKE_INSTALL_DIR}"
-        COMPONENT dev)
-
-    INSTALL(TARGETS RapidJSON EXPORT RapidJSON-targets)
-    INSTALL(EXPORT RapidJSON-targets DESTINATION ${CMAKE_INSTALL_DIR})
-ENDIF()
+if(RAPIDJSON_INSTALL)
+    install(
+        DIRECTORY include/rapidjson
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        FILES_MATCHING PATTERN "*.h"
+    )
+endif()

@@ -79,6 +79,21 @@
     RAPIDJSON_STRINGIFY(RAPIDJSON_MAJOR_VERSION.RAPIDJSON_MINOR_VERSION.RAPIDJSON_PATCH_VERSION)
 
 ///////////////////////////////////////////////////////////////////////////////
+// RAPIDJSON_API
+
+#if defined(_WIN32)
+#if defined(RAPIDJSON_STATIC_DEFINE)
+#define RAPIDJSON_API
+#elif defined(RAPIDJSON_EXPORTS)
+#define RAPIDJSON_API __declspec(dllexport)
+#else
+#define RAPIDJSON_API __declspec(dllimport)
+#endif
+#else
+#define RAPIDJSON_API __attribute__((visibility("default")))
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
 // RAPIDJSON_NAMESPACE_(BEGIN|END)
 /*! \def RAPIDJSON_NAMESPACE
     \ingroup RAPIDJSON_CONFIG
@@ -735,6 +750,9 @@ enum Type {
     kStringType = 5,    //!< string
     kNumberType = 6     //!< number
 };
+
+//! Get the RapidJSON version string.
+RAPIDJSON_API const char* GetVersion() RAPIDJSON_NOEXCEPT;
 
 RAPIDJSON_NAMESPACE_END
 
